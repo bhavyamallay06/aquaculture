@@ -4,7 +4,10 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <WiFiClient.h>
-
+#include "secrets.h"
+#include <WiFiClientSecure.h>
+#include <PubSubClient.h>
+#include <ArduinoJson.h>
 
 const int potPin=A0;
 float ph;
@@ -16,23 +19,15 @@ float NH4;
 float Value=0;
 float dissolvedOxygen;
 
+#define AWS_IOT_PUBLISH_TOPIC   "esp32/pub"
+#define AWS_IOT_SUBSCRIBE_TOPIC "esp32/sub"
+
 // Data wire is plugged into port 2 on the Arduino
 #define SECRET_SSID "TIF_LABS"  // replace MySSID with your WiFi network name
 #define SECRET_PASS "Robocraze" // replace MyPassword with your WiFi password
 #define ONE_WIRE_BUS 23
 #define SECRET_CH_ID 2133535                   // replace 0000000 with your channel number
 #define SECRET_WRITE_APIKEY "V1M26367TWVQPCU9" // replace XYZ with your channel write API Key
-
-char ssid[] = SECRET_SSID; // your network SSID (name)
-char pass[] = SECRET_PASS; // your network password
-int keyIndex = 0;          // your network key Index number (needed only for WEP)
-WiFiClient client;
-unsigned long myChannelNumber = SECRET_CH_ID;
-const char *myWriteAPIKey = SECRET_WRITE_APIKEY;
-
-OneWire oneWire(ONE_WIRE_BUS);
-// Pass our oneWire reference to Dallas Temperature.
-DallasTemperature sensors(&oneWire);
 
 //pins for relay
 #define RELAY1_PIN 4  // Relay 1 signal pin for pH control
@@ -42,20 +37,104 @@ DallasTemperature sensors(&oneWire);
 #define PUMP_ON LOW  // Logic level to turn the relay ON
 #define PUMP_OFF HIGH  // Logic level to turn the relay OFF
 
+char ssid[] = SECRET_SSID; // your network SSID (name)
+char pass[] = SECRET_PASS; // your network password
+int keyIndex = 0;          // your network key Index number (needed only for WEP)
+WiFiClient client;
+unsigned long myChannelNumber = SECRET_CH_ID;
+const char *myWriteAPIKey = SECRET_WRITE_APIKEY;
+
+WiFiClientSecure net = WiFiClientSecure();
+PubSubClient client(net);
+
+OneWire oneWire(ONE_WIRE_BUS);
+// Pass our oneWire reference to Dallas Temperature.
+DallasTemperature sensors(&oneWire);
+
+
 void setup()
 {
  Serial.begin(115200); //Initialize serial
  pinMode(potPin,INPUT);
  sensors.begin();
  WiFi.mode(WIFI_STA);
+ connectAWS();
  ThingSpeak.begin(client); // Initialize ThingSpeak
 
- //relay pins
+  //relay pins
  pinMode(RELAY1_PIN, OUTPUT);  // Set relay 1 pin as output
  pinMode(RELAY2_PIN, OUTPUT);  // Set relay 2 pin as output
  pinMode(RELAY3_PIN, OUTPUT);  // Set relay 3 pin as output
  pinMode(RELAY4_PIN, OUTPUT);  // Set relay 4 pin as output
 }
+
+void connectAWS()
+{
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, pass);
+ 
+  Serial.println("Connecting to Wi-Fi");
+ 
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    delay(500);
+    Serial.print(".");
+  }
+ 
+  // Configure WiFiClientSecure to use the AWS IoT device credentials
+  net.setCACert(AWS_CERT_CA);
+  net.setCertificate(AWS_CERT_CRT);
+  net.setPrivateKey(AWS_CERT_PRIVATE);
+ 
+  // Connect to the MQTT broker on the AWS endpoint we defined earlier
+  client.setServer(AWS_IOT_ENDPOINT, 8883);
+ 
+  // Create a message handler
+  client.setCallback(messageHandler);
+ 
+  Serial.println("Connecting to AWS IOT");
+ 
+  while (!client.connect(THINGNAME))
+  {
+    Serial.print(".");
+    delay(100);
+  }
+ 
+  if (!client.connected())
+  {
+    Serial.println("AWS IoT Timeout!");
+    return;
+  }
+ 
+  // Subscribe to a topic
+  client.subscribe(AWS_IOT_SUBSCRIBE_TOPIC);
+ 
+  Serial.println("AWS IoT Connected!");
+}
+
+void publishMessage()
+{
+  StaticJsonDocument<200> doc;
+  doc["temperature"] = tempC;
+  doc["ammonia"] = NH3;
+  doc["ph"] = ph;
+  char jsonBuffer[512];
+  serializeJson(doc, jsonBuffer); // print to client
+ 
+  client.publish(AWS_IOT_PUBLISH_TOPIC, jsonBuffer);
+}
+ 
+void messageHandler(char* topic, byte* payload, unsigned int length)
+{
+  Serial.print("incoming: ");
+  Serial.println(topic);
+ 
+  StaticJsonDocument<200> doc;
+  deserializeJson(doc, payload);
+  const char* message = doc["message"];
+  Serial.println(message);
+}
+ 
 
 void loop()
 { 
@@ -67,21 +146,6 @@ void loop()
   ph=(3.3*voltage);
   Serial.println(ph);
   delay(500);
- // Connect or reconnect to WiFi
- if (WiFi.status() != WL_CONNECTED)
- {
-   Serial.print("Attempting to connect to SSID: ");
-   Serial.println(SECRET_SSID);
-   while (WiFi.status() != WL_CONNECTED)
-   {
-     WiFi.begin(ssid, pass); // Connect to WPA/WPA2 network. Change this line if using open or WEP network
-     Serial.print(".");
-     delay(5000);
-   }
-   Serial.println("\nConnected.");
-  
-  
- }
 
  Serial.print("Requesting temperatures...");
  sensors.requestTemperatures(); // Send the command to get temperatures
@@ -107,7 +171,7 @@ void loop()
 
  Serial.print(NH3);
 
- //define relay code
+  //define relay code
   if (ph < 6.0 || ph > 8.0) {
     digitalWrite(RELAY1_PIN, PUMP_ON);  // Turn relay 1 ON
   } else {
