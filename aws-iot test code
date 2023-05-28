@@ -5,15 +5,15 @@
 const char* ssid = "Your_WiFi_SSID";
 const char* password = "Your_WiFi_Password";
 
-const char* awsEndpoint = "YOUR_IoT_ENDPOINT";
+const char* awsEndpoint = "a26cw8ftcumb8j-ats.iot.us-east-1.amazonaws.com";
 const int awsPort = 8883;
 const char* awsCert = "certificate.pem.crt";
 const char* awsPrivateKey = "private.pem.key";
-const char* awsRootCA = "rootCA.pem";
-const char* awsTopic = "raspi/data";
+const char* awsRootCA = "RootCA1.pem";
+const char* awsTopic = "esp32/data";
 
 WiFiClientSecure wifiClient;
-PubSubClient client(wifiClient);
+PubSubClient mqttClient(wifiClient); // Renamed from 'client'
 
 void setup() {
   Serial.begin(115200);
@@ -29,17 +29,17 @@ void setup() {
   wifiClient.setCertificate(awsCert);
   wifiClient.setPrivateKey(awsPrivateKey);
 
-  client.setServer(awsEndpoint, awsPort);
+  mqttClient.setServer(awsEndpoint, awsPort); // Renamed from 'client'
 }
 
 void reconnect() {
-  while (!client.connected()) {
+  while (!mqttClient.connected()) { // Renamed from 'client'
     Serial.println("Attempting MQTT connection...");
-    if (client.connect("ESP32Client")) {
+    if (mqttClient.connect("ESP32Client")) { // Renamed from 'client'
       Serial.println("Connected to AWS IoT");
     } else {
       Serial.print("Failed to connect, rc=");
-      Serial.print(client.state());
+      Serial.print(mqttClient.state()); // Renamed from 'client'
       Serial.println(" Retrying in 5 seconds...");
       delay(5000);
     }
@@ -47,14 +47,15 @@ void reconnect() {
 }
 
 void loop() {
-  if (!client.connected()) {
+  if (!mqttClient.connected()) { // Renamed from 'client'
     reconnect();
   }
-  client.loop();
+  mqttClient.loop(); // Renamed from 'client'
 
   // Publish data to AWS IoT
   String message = "Testing";
-  client.publish(awsTopic, message.c_str());
+  mqttClient.publish(awsTopic, message.c_str()); // Renamed from 'client'
 
   delay(5000);  // Publish every 5 seconds
 }
+
