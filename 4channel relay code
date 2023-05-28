@@ -1,0 +1,60 @@
+#define RELAY1_PIN 4  // Relay 1 signal pin for pH control
+#define RELAY2_PIN 5  // Relay 2 signal pin for pH control
+#define RELAY3_PIN 6  // Relay 3 signal pin for ammonia control
+#define RELAY4_PIN 7  // Relay 4 signal pin for dissolved oxygen control
+#define PUMP_ON LOW  // Logic level to turn the relay ON
+#define PUMP_OFF HIGH  // Logic level to turn the relay OFF
+
+void setup() {
+  pinMode(RELAY1_PIN, OUTPUT);  // Set relay 1 pin as output
+  pinMode(RELAY2_PIN, OUTPUT);  // Set relay 2 pin as output
+  pinMode(RELAY3_PIN, OUTPUT);  // Set relay 3 pin as output
+  pinMode(RELAY4_PIN, OUTPUT);  // Set relay 4 pin as output
+}
+
+void loop() {
+  float pH = readpH();  // Read pH value from sensor
+  float ammonia = readAmmonia();  // Read ammonia value from sensor
+  float dissolvedOxygen = readDissolvedOxygen();  // Read dissolved oxygen value from sensor
+
+  // pH control
+  if (pH < 6.0 || pH > 8.0) {
+    digitalWrite(RELAY1_PIN, PUMP_ON);  // Turn relay 1 ON
+  } else {
+    digitalWrite(RELAY1_PIN, PUMP_OFF);  // Turn relay 1 OFF
+  }
+
+  // Ammonia control
+  if (ammonia > 4.0) {
+    digitalWrite(RELAY3_PIN, PUMP_ON);  // Turn relay 3 ON
+  } else {
+    digitalWrite(RELAY3_PIN, PUMP_OFF);  // Turn relay 3 OFF
+  }
+
+  // Dissolved oxygen control
+  if (dissolvedOxygen < 10.0) {
+    digitalWrite(RELAY4_PIN, PUMP_ON);  // Turn relay 4 ON
+  } else {
+    digitalWrite(RELAY4_PIN, PUMP_OFF);  // Turn relay 4 OFF
+  }
+
+  delay(1000);  // Delay for 1 second before repeating the loop
+}
+
+float readpH() {
+  // Code to read pH value from pH sensor
+  // Replace with your actual pH sensor reading implementation
+  // and return the pH value as a float
+}
+
+float readAmmonia() {
+  // Code to read ammonia value from ammonia sensor
+  // Replace with your actual ammonia sensor reading implementation
+  // and return the ammonia value as a float
+}
+
+float readDissolvedOxygen() {
+  // Code to read dissolved oxygen value from dissolved oxygen sensor
+  // Replace with your actual dissolved oxygen sensor reading implementation
+  // and return the dissolved oxygen value as a float
+}
