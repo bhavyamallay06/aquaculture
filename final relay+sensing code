@@ -1,0 +1,155 @@
+#include <ThingSpeak.h>
+#include <SPI.h>
+#include <WiFi.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include <WiFiClient.h>
+
+
+const int potPin=A0;
+float ph;
+float NH3;
+float Kw;
+float OH;
+float Kb;
+float NH4;
+float Value=0;
+float dissolvedOxygen;
+
+// Data wire is plugged into port 2 on the Arduino
+#define SECRET_SSID "TIF_LABS"  // replace MySSID with your WiFi network name
+#define SECRET_PASS "Robocraze" // replace MyPassword with your WiFi password
+#define ONE_WIRE_BUS 23
+#define SECRET_CH_ID 2133535                   // replace 0000000 with your channel number
+#define SECRET_WRITE_APIKEY "V1M26367TWVQPCU9" // replace XYZ with your channel write API Key
+
+char ssid[] = SECRET_SSID; // your network SSID (name)
+char pass[] = SECRET_PASS; // your network password
+int keyIndex = 0;          // your network key Index number (needed only for WEP)
+WiFiClient client;
+unsigned long myChannelNumber = SECRET_CH_ID;
+const char *myWriteAPIKey = SECRET_WRITE_APIKEY;
+
+OneWire oneWire(ONE_WIRE_BUS);
+// Pass our oneWire reference to Dallas Temperature.
+DallasTemperature sensors(&oneWire);
+
+//pins for relay
+#define RELAY1_PIN 4  // Relay 1 signal pin for pH control
+#define RELAY2_PIN 5  // Relay 2 signal pin for pH control
+#define RELAY3_PIN 6  // Relay 3 signal pin for ammonia control
+#define RELAY4_PIN 7  // Relay 4 signal pin for dissolved oxygen control
+#define PUMP_ON LOW  // Logic level to turn the relay ON
+#define PUMP_OFF HIGH  // Logic level to turn the relay OFF
+
+void setup()
+{
+ Serial.begin(115200); //Initialize serial
+ pinMode(potPin,INPUT);
+ sensors.begin();
+ WiFi.mode(WIFI_STA);
+ ThingSpeak.begin(client); // Initialize ThingSpeak
+
+ //relay pins
+ pinMode(RELAY1_PIN, OUTPUT);  // Set relay 1 pin as output
+ pinMode(RELAY2_PIN, OUTPUT);  // Set relay 2 pin as output
+ pinMode(RELAY3_PIN, OUTPUT);  // Set relay 3 pin as output
+ pinMode(RELAY4_PIN, OUTPUT);  // Set relay 4 pin as output
+}
+
+void loop()
+{ 
+  float tempC = sensors.getTempCByIndex(0);
+  Value= analogRead(potPin);
+  Serial.print(Value);
+  Serial.print(" | ");
+  float voltage=Value*(3.3/4095.0);
+  ph=(3.3*voltage);
+  Serial.println(ph);
+  delay(500);
+ // Connect or reconnect to WiFi
+ if (WiFi.status() != WL_CONNECTED)
+ {
+   Serial.print("Attempting to connect to SSID: ");
+   Serial.println(SECRET_SSID);
+   while (WiFi.status() != WL_CONNECTED)
+   {
+     WiFi.begin(ssid, pass); // Connect to WPA/WPA2 network. Change this line if using open or WEP network
+     Serial.print(".");
+     delay(5000);
+   }
+   Serial.println("\nConnected.");
+  
+  
+ }
+
+ Serial.print("Requesting temperatures...");
+ sensors.requestTemperatures(); // Send the command to get temperatures
+ //int x = ThingSpeak.writeField(myChannelNumber, 1, sensors.getTempCByIndex(0), myWriteAPIKey);
+ Serial.print(tempC);
+
+ delay(1000); // Wait 2 seconds to update the channel again
+ sendDataToThingSpeak();
+ delay(10000);
+
+
+  Kw = pow(10, (-14 + 0.0161*tempC - 0.0000075*pow(tempC,2)));
+
+  // Calculate the concentration of NH4+ and OH-
+  NH4 = pow(10, -ph) / (1 + pow(10, -ph));
+  OH = Kw / pow(10, -ph);
+
+  // Calculate the base dissociation constant for ammonia (Kb) at the given temperature
+  Kb = 1.8 * pow(10, -5) * exp(-6140/tempC);
+
+  // Calculate the concentration of NH3
+  NH3 = NH4 * Kw / (Kb * OH);
+
+ Serial.print(NH3);
+
+ //define relay code
+  if (ph < 6.0 || ph > 8.0) {
+    digitalWrite(RELAY1_PIN, PUMP_ON);  // Turn relay 1 ON
+  } else {
+    digitalWrite(RELAY1_PIN, PUMP_OFF);  // Turn relay 1 OFF
+  }
+
+  // Ammonia control
+  if (NH4 > 4.0) {
+    digitalWrite(RELAY3_PIN, PUMP_ON);  // Turn relay 3 ON
+  } else {
+    digitalWrite(RELAY3_PIN, PUMP_OFF);  // Turn relay 3 OFF
+  }
+
+  // Dissolved oxygen control
+  if (dissolvedOxygen < 10.0) {
+    digitalWrite(RELAY4_PIN, PUMP_ON);  // Turn relay 4 ON
+  } else {
+    digitalWrite(RELAY4_PIN, PUMP_OFF);  // Turn relay 4 OFF
+  }
+
+  delay(1000);  // Delay for 1 second before repeating the loop
+
+}
+
+void sendDataToThingSpeak() {
+  WiFiClient client;
+  const int httpPort = 80;
+  if (!client.connect("api.thingspeak.com", httpPort)) {
+    Serial.println("Connection failed");
+    return;
+  }
+  float tempC = sensors.getTempCByIndex(0);
+  String url = "/update?api_key=V1M26367TWVQPCU9&field1=";
+  url += String(ph);
+  url += "&field2=";
+  url += String(tempC);
+  url += "&field3=";
+  url += String(NH3);
+  Serial.println(url);
+  client.print(String("GET ") + url + " HTTP/1.1\r\n" +
+               "Host: " + "api.thingspeak.com" + "\r\n" +
+               "Connection: close\r\n\r\n");
+  delay(1000);
+  client.stop();
+}
