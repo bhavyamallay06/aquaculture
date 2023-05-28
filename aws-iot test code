@@ -1,29 +1,60 @@
-import time
-import paho.mqtt.client as mqtt
-import ssl
-import json
-import _thread
+#include <WiFi.h>
+#include <PubSubClient.h>
+#include <WiFiClientSecure.h>
 
-def on_connect(client, userdata, flags, rc):
-    print("Connected to AWS IoT: " + str(rc))
+const char* ssid = "Your_WiFi_SSID";
+const char* password = "Your_WiFi_Password";
 
-client = mqtt.Client()
-client.on_connect = on_connect
-client.tls_set(ca_certs='./rootCA.pem', certfile='./certificate.pem.crt', keyfile='./private.pem.key', tls_version=ssl.PROTOCOL_SSLv23)
-client.tls_insecure_set(True)
-client.connect("YOUR_IoT_ENDPOINT", 8883, 60)
+const char* awsEndpoint = "YOUR_IoT_ENDPOINT";
+const int awsPort = 8883;
+const char* awsCert = "certificate.pem.crt";
+const char* awsPrivateKey = "private.pem.key";
+const char* awsRootCA = "rootCA.pem";
+const char* awsTopic = "raspi/data";
 
-def publishData(txt):
-    print(txt)
-    ctr = 1
-    while (True):
-        msg = "Testing" + str(ctr)
-        print(msg)
-        client.publish("raspi/data", payload=json.dumps({"msg": msg}), qos=0, retain=False)
-        ctr = ctr + 1
+WiFiClientSecure wifiClient;
+PubSubClient client(wifiClient);
 
-        time.sleep(5)
-        
-_thread.start_new_thread(publishData,("Spin-up new Thread...",))
+void setup() {
+  Serial.begin(115200);
+  WiFi.begin(ssid, password);
+  
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("WiFi connected");
 
-client.loop_forever()
+  wifiClient.setCACert(awsRootCA);
+  wifiClient.setCertificate(awsCert);
+  wifiClient.setPrivateKey(awsPrivateKey);
+
+  client.setServer(awsEndpoint, awsPort);
+}
+
+void reconnect() {
+  while (!client.connected()) {
+    Serial.println("Attempting MQTT connection...");
+    if (client.connect("ESP32Client")) {
+      Serial.println("Connected to AWS IoT");
+    } else {
+      Serial.print("Failed to connect, rc=");
+      Serial.print(client.state());
+      Serial.println(" Retrying in 5 seconds...");
+      delay(5000);
+    }
+  }
+}
+
+void loop() {
+  if (!client.connected()) {
+    reconnect();
+  }
+  client.loop();
+
+  // Publish data to AWS IoT
+  String message = "Testing";
+  client.publish(awsTopic, message.c_str());
+
+  delay(5000);  // Publish every 5 seconds
+}
