@@ -90,7 +90,7 @@ eOUt/x1CFP7CWnV6hwGGw+pKq1tf08MKqTomnGs8BBV5N0M3G+IyAyz8SZfBV7DH
 )KEY";
 
 // Device Public Key                                               //change this
-static const char AWS_CERT_PRIVATE[] PROGMEM = R"KEY(
+static const char AWS_CERT_PUBLIC[] PROGMEM = R"KEY(
 -----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5p0bSK/rM5A09bi9welE
 qRjFxdp6J6Pi3XbrSP6qfh1n+W4FjiPQxmli3gzu4tbgbHBOJjgmE6ag+PN3iKjc
