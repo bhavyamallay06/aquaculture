@@ -88,7 +88,7 @@ void connectAWS()
   net.setPrivateKey(AWS_CERT_PRIVATE);
  
   // Connect to the MQTT broker on the AWS endpoint we defined earlier
-  mqttclient.setServer(AWS_IOT_ENDPOINT, 8883);
+  mqttclient.setServer(AWS_IOT_ENDPOINT, 8883);+
  
   // Create a message handler
   mqttclient.setCallback(messageHandler);
